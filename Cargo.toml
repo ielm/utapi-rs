@@ -5,6 +5,9 @@ authors = ["Ivan Leon <ivan@dino.dev>"]
 description = "A Rust wrapper around the UploadThing API."
 license = "MIT"
 edition = "2021"
+homepage = "https://github.com/ielm/utapi-rs"
+repository = "https://github.com/ielm/utapi-rs"
+
 
 [dependencies]
 serde = "^1.0"
