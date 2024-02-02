@@ -132,7 +132,7 @@ impl UtApi {
             .header(header::USER_AGENT, self.config.user_agent.as_ref().unwrap()) // Set the User-Agent header.
             .header(
                 "x-uploadthing-api-key",
-                self.config.api_key.as_ref().unwrap(), // Set the custom API key header.
+                self.config.api_key.as_ref().unwrap().to_string(), // Set the custom API key header.
             )
             .header(
                 "x-uploadthing-version",
