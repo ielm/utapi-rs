@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::error::Error;
 
 use crate::config::UploadthingConfig;
+use crate::models::{DeleteFileResponse, FileKeysPayload};
 
 /// The `UtApi` struct represents the client for interacting with the Uploadthing API.
 ///
@@ -100,5 +101,44 @@ impl UtApi {
             // If the response indicates failure, extract and return the error.
             Err(Box::new(response.error_for_status().unwrap_err()))
         }
+    }
+
+    /// Sends a `DELETE` request to the `Uploadthing` service to delete a list of files.
+    ///
+    /// This method accepts a list of file keys and constructs a payload to send to the
+    /// `/api/deleteFile` endpoint. It then calls the `request_uploadthing` method to
+    /// perform the actual request.
+    ///
+    /// # Parameters
+    ///
+    /// * `file_keys`: A `Vec<String>` containing the keys of the files to be deleted.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` with a `DeleteFileResponse` if the deletion was successful,
+    /// or an `Error` boxed in a `Box<dyn Error>` if the request failed.
+    ///
+    /// # Errors
+    ///
+    /// If the response status is not a success, or if the response cannot be deserialized
+    /// into a `DeleteFileResponse`, this function will return an `Error`.
+    pub async fn delete_files(
+        &self,
+        file_keys: Vec<String>,
+    ) -> Result<DeleteFileResponse, Box<dyn Error>> {
+        // Construct the payload with the file keys to be deleted.
+        let payload = FileKeysPayload { file_keys };
+
+        // Make a `DELETE` request to the Uploadthing service using the constructed payload.
+        let response = self
+            .request_uploadthing("/api/deleteFile", &payload)
+            .await?;
+
+        // Deserialize the JSON response into the `DeleteFileResponse` struct.
+        // This holds the result of the delete operation.
+        let delete_response: DeleteFileResponse = response.json().await?;
+
+        // Return the deserialized delete response.
+        Ok(delete_response)
     }
 }
