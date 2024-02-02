@@ -1,6 +1,6 @@
 [package]
 name = "utapi-rs"
-version = "6.2.1"
+version = "0.1.0"
 authors = ["Ivan Leon <ivan@dino.dev>"]
 description = "A Rust wrapper around the UploadThing API."
 license = "MIT"
