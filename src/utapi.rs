@@ -3,7 +3,10 @@ use serde::Serialize;
 use std::error::Error;
 
 use crate::config::UploadthingConfig;
-use crate::models::{DeleteFileResponse, FileKeysPayload, UploadthingUrlsResponse};
+use crate::models::{
+    DeleteFileResponse, FileKeysPayload, ListFilesOpts, UploadthingFileResponse,
+    UploadthingUrlsResponse,
+};
 
 /// The `UtApi` struct represents the client for interacting with the Uploadthing API.
 ///
@@ -198,5 +201,38 @@ impl UtApi {
 
         // Return the deserialized URLs response.
         Ok(urls_response)
+    }
+
+    /// Lists files stored in `Uploadthing` service.
+    ///
+    /// # Parameters
+    ///
+    /// * `opts`: An optional `ListFilesOpts` struct with parameters to control pagination.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` with a `UploadthingFileResponse` if the retrieval was successful,
+    /// or an `Error` boxed in a `Box<dyn Error>` if the request failed.
+    ///
+    /// # Errors
+    ///
+    /// If the response status is not a success, or if the response cannot be deserialized
+    /// into a `UploadthingFileResponse`, this function will return an `Error`.
+    pub async fn list_files(
+        &self,
+        opts: Option<ListFilesOpts>,
+    ) -> Result<UploadthingFileResponse, Box<dyn Error>> {
+        // You might serialize `None` to send no specific parameters,
+        // or provide a default instance of ListFilesOpts with desired default values.
+        let payload = opts.unwrap_or_default();
+
+        // Make a `POST` request to the Uploadthing service using the constructed payload.
+        let response = self.request_uploadthing("/api/listFiles", &payload).await?;
+
+        // Deserialize the JSON response into the `UploadthingFileResponse` struct.
+        let file_response: UploadthingFileResponse = response.json().await?;
+
+        // Return the deserialized file response.
+        Ok(file_response)
     }
 }
