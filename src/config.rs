@@ -15,6 +15,27 @@ pub struct ApiKey {
     pub key: String,
 }
 
+impl ApiKey {
+    pub fn from_env() -> Option<ApiKey> {
+        match std::env::var("UPLOADTHING_SECRET") {
+            Ok(key) => Some(ApiKey { prefix: None, key }),
+            Err(_) => None,
+        }
+    }
+}
+
+impl Default for ApiKey {
+    fn default() -> ApiKey {
+        Self::from_env().unwrap()
+    }
+}
+
+impl std::fmt::Display for ApiKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.key)
+    }
+}
+
 impl UploadthingConfig {
     pub fn new() -> UploadthingConfig {
         UploadthingConfig::default()
