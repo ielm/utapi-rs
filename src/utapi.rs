@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::error::Error;
 
 use crate::config::UploadthingConfig;
-use crate::models::{DeleteFileResponse, FileKeysPayload};
+use crate::models::{DeleteFileResponse, FileKeysPayload, UploadthingUrlsResponse};
 
 /// The `UtApi` struct represents the client for interacting with the Uploadthing API.
 ///
@@ -161,5 +161,42 @@ impl UtApi {
 
         // Return the deserialized delete response.
         Ok(delete_response)
+    }
+
+    /// Retrieves the URLs for a list of file keys from the `Uploadthing` service.
+    ///
+    /// # Parameters
+    ///
+    /// * `file_keys`: A `Vec<String>` containing the keys of the files whose URLs are to be retrieved.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` with a `UploadthingUrlsResponse` if the retrieval was successful,
+    /// or an `Error` boxed in a `Box<dyn Error>` if the request failed.
+    ///
+    /// # Errors
+    ///
+    /// If the response status is not a success, or if the response cannot be deserialized
+    /// into a `UploadthingUrlsResponse`, this function will return an `Error`.
+    pub async fn get_file_urls(
+        &self,
+        file_keys: Vec<String>,
+    ) -> Result<UploadthingUrlsResponse, Box<dyn Error>> {
+        // Construct the payload with the file keys for which URLs are to be retrieved.
+        let payload = FileKeysPayload { file_keys };
+
+        // Make a `POST` request to the Uploadthing service using the constructed payload.
+        // Note: Assuming that the `getFileUrl` API uses a POST method as it was unspecified;
+        // adapt the HTTP method according to the API specification if necessary.
+        let response = self
+            .request_uploadthing("/api/getFileUrl", &payload)
+            .await?;
+
+        // Deserialize the JSON response into the `UploadthingUrlsResponse` struct.
+        // This holds the URLs for the requested file keys.
+        let urls_response: UploadthingUrlsResponse = response.json().await?;
+
+        // Return the deserialized URLs response.
+        Ok(urls_response)
     }
 }
