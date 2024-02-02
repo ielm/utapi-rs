@@ -43,6 +43,27 @@ impl UtApi {
         UtApi { config, client }
     }
 
+    /// Creates a new instance of `UtApi` from a given `UploadthingConfig`.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - An `UploadthingConfig` instance containing the configuration for the service.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let config = UploadthingConfig::builder().api_key("your_api_key").build();
+    /// let api = UtApi::from_config(config);
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// Returns a new `UtApi` struct initialized with the provided configuration and a new `Client`.
+    pub fn from_config(config: UploadthingConfig) -> UtApi {
+        let client = Client::new();
+        UtApi { config, client }
+    }
+
     /// Sends a `POST` request to the `Uploadthing` service.
     ///
     /// This method constructs a URL using the `pathname` and the host from the configuration,
