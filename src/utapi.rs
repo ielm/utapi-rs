@@ -4,7 +4,7 @@ use std::error::Error;
 
 use crate::config::UploadthingConfig;
 use crate::models::{
-    DeleteFileResponse, FileKeysPayload, ListFilesOpts, UploadthingFileResponse,
+    DeleteFileResponse, FileKeysPayload, ListFilesOpts, RenameFilesOpts, UploadthingFileResponse,
     UploadthingUrlsResponse,
 };
 
@@ -234,5 +234,28 @@ impl UtApi {
 
         // Return the deserialized file response.
         Ok(file_response)
+    }
+
+    /// Renames files in the `Uploadthing` service according to the given options.
+    ///
+    /// # Parameters
+    ///
+    /// * `files`: A `RenameFilesOpts` struct with the file keys and new names for renaming.
+    ///
+    /// # Returns
+    ///
+    /// An `Ok` result if the renaming operation was successful,
+    /// or an `Error` boxed in a `Box<dyn Error>` if the request failed.
+    ///
+    /// # Errors
+    ///
+    /// If the response status is not a success, this function will return an `Error`.
+    pub async fn rename_files(&self, files: RenameFilesOpts) -> Result<(), Box<dyn Error>> {
+        // Make a `POST` request to the Uploadthing service using the constructed payload.
+        // No response content is expected based on the comment in the Go code.
+        let _response = self.request_uploadthing("/api/renameFiles", &files).await?;
+
+        // If successful, return an `Ok` result with no value.
+        Ok(())
     }
 }

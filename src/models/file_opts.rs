@@ -19,3 +19,15 @@ impl Default for ListFilesOpts {
         }
     }
 }
+
+#[derive(Serialize)]
+pub struct SingleFileRename {
+    pub file_key: String,
+    pub new_name: String,
+}
+
+
+#[derive(Serialize)]
+pub struct RenameFilesOpts {
+    pub updates: Vec<SingleFileRename>,
+}
