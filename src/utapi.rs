@@ -2,10 +2,10 @@ use reqwest::{header, Client, Response};
 use serde::Serialize;
 use std::error::Error;
 
-use crate::config::UploadthingConfig;
+use crate::config::{ApiKey, UploadthingConfig};
 use crate::models::{
-    DeleteFileResponse, FileKeysPayload, ListFilesOpts, RenameFilesOpts, UploadthingFileResponse,
-    UploadthingUrlsResponse,
+    DeleteFileResponse, FileKeysPayload, ListFilesOpts, PresignedUrlOpts, PresignedUrlResponse,
+    RenameFilesOpts, UploadthingFileResponse, UploadthingUrlsResponse, UploadthingUsageInfo,
 };
 
 /// The `UtApi` struct represents the client for interacting with the Uploadthing API.
@@ -22,22 +22,44 @@ pub struct UtApi {
 impl UtApi {
     /// Creates a new instance of `UtApi`.
     ///
+    /// This constructor initializes the `UtApi` struct with the provided API key
+    /// or, if none is provided, attempts to retrieve the API key from the environment.
+    /// It sets up the `UploadthingConfig` and the internal `Client` for HTTP requests.
+    ///
     /// # Arguments
     ///
-    /// * `api_key` - A string slice that holds the API key for authentication.
+    /// * `api_key` - An `Option<String>` that holds the API key for authentication.
+    ///               If `None`, the API key is retrieved from the environment.
     ///
     /// # Examples
     ///
     /// ```
-    /// let api = UtApi::new("your_api_key");
+    /// // Create a new API client with a provided API key.
+    /// let api_with_key = UtApi::new(Some("your_api_key".to_string()));
+    ///
+    /// // Create a new API client using the API key from the environment.
+    /// let api_with_env_key = UtApi::new(None);
     /// ```
     ///
     /// # Returns
     ///
-    /// Returns a new `UtApi` struct initialized with the provided API key and a new `Client`.
-    pub fn new(api_key: &str) -> UtApi {
+    /// Returns a new `UtApi` struct initialized with the provided or environment API key
+    /// and a new `Client`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the API key is not provided and is also not set in the environment.
+    pub fn new(api_key: Option<String>) -> UtApi {
         // Initialize the configuration for the Uploadthing service using the provided API key.
-        let config = UploadthingConfig::builder().api_key(api_key).build();
+        // If no API key is provided, attempt to retrieve the key from the environment variable.
+        let api_key = api_key.unwrap_or_else(|| {
+            ApiKey::from_env()
+                .expect("API key not provided and not found in environment")
+                .to_string()
+        });
+
+        // Build the configuration with the retrieved or provided API key.
+        let config = UploadthingConfig::builder().api_key(&api_key).build();
 
         // Create a new HTTP client for making requests.
         let client = Client::new();
@@ -105,6 +127,8 @@ impl UtApi {
             .client
             .post(&url)
             .json(payload) // Serialize the payload as JSON and set it as the request body.
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CACHE_CONTROL, "no-store") // Ensure the response is not cached.
             .header(header::USER_AGENT, self.config.user_agent.as_ref().unwrap()) // Set the User-Agent header.
             .header(
                 "x-uploadthing-api-key",
@@ -114,7 +138,6 @@ impl UtApi {
                 "x-uploadthing-version",
                 self.config.version.as_ref().unwrap(), // Set the custom version header.
             )
-            .header("Cache-Control", "no-store") // Ensure the response is not cached.
             .send() // Send the request.
             .await?; // Await the async operation, returning an error if one occurs.
 
@@ -257,5 +280,73 @@ impl UtApi {
 
         // If successful, return an `Ok` result with no value.
         Ok(())
+    }
+
+    /// Gets usage information for the current `Uploadthing` account.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` with a `UploadthingUsageInfo` if the retrieval was successful,
+    /// or an `Error` boxed in a `Box<dyn Error>` if the request failed.
+    ///
+    /// # Errors
+    ///
+    /// If the response status is not a success, or if the response cannot be deserialized
+    /// into an `UploadthingUsageInfo`, this function will return an `Error`.
+    pub async fn get_usage_info(&self) -> Result<UploadthingUsageInfo, Box<dyn Error>> {
+        // Make a `GET` request to the Uploadthing service to get the usage info.
+        // An empty payload is assumed because of the "bytes.NewBuffer([]byte{})" in Go code.
+        let response = self.request_uploadthing("/api/getUsageInfo", &()).await?;
+
+        // Deserialize the JSON response into the `UploadthingUsageInfo` struct.
+        let usage_info: UploadthingUsageInfo = response.json().await?;
+
+        // Return the deserialized usage information.
+        Ok(usage_info)
+    }
+
+    /// Generates a presigned URL for a file.
+    ///
+    /// The maximum value for `expires_in` is 604800 (7 days).
+    /// This function assumes that you must accept overrides on the UploadThing dashboard
+    /// for `expires_in` to be accepted.
+    ///
+    /// # Parameters
+    ///
+    /// * `opts`: A `PresignedUrlOpts` struct containing options for the presigned URL,
+    ///           including the file key and the expiration time in seconds.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` with a `String` presigned URL if the operation was successful,
+    /// or an `Error` boxed in a `Box<dyn Error>` if the request failed, including
+    /// scenarios where `expires_in` is greater than the allowed maximum.
+    ///
+    /// # Errors
+    ///
+    /// If `expires_in` is greater than 604800 or if an error occurs during the request,
+    /// an `Error` is returned.
+    pub async fn get_presigned_url(
+        &self,
+        opts: PresignedUrlOpts,
+    ) -> Result<String, Box<dyn Error>> {
+        // Validate expiresIn.
+        if opts.expires_in.unwrap_or(0) > 604800 {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "expiresIn must be less than 604800",
+            )));
+        }
+
+        // Make a `POST` request to the Uploadthing service using the constructed payload.
+        let response = self
+            .request_uploadthing("/api/requestFileAccess", &opts)
+            .await?;
+
+        // Deserialize the JSON response into the `PresignedUrlResponse` struct.
+        let url_response: PresignedUrlResponse = response.json().await?;
+
+        // Return the `url` from the deserialized response.
+        Ok(url_response.url)
     }
 }

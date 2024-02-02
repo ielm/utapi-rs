@@ -12,3 +12,9 @@ pub use list_files::{UploadthingFile, UploadthingFileResponse};
 
 pub mod file_status;
 pub use file_status::UploadthingFileStatus;
+
+pub mod usage_info;
+pub use usage_info::UploadthingUsageInfo;
+
+pub mod presigned_url;
+pub use presigned_url::{PresignedUrlOpts, PresignedUrlResponse};
