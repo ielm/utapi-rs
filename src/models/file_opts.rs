@@ -4,6 +4,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 pub struct FileKeysPayload {
     /// A vector of strings where each string is a unique key for a file.
+    #[serde(rename(serialize = "fileKeys"))]
     pub file_keys: Vec<String>,
 }
 
