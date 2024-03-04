@@ -14,6 +14,8 @@ pub struct UploadthingFile {
     pub id: String,
     /// The current status of the file, indicating whether it's pending, completed, etc.
     pub status: UploadthingFileStatus,
+    /// The name of the file.
+    pub name: String,
 }
 
 /// A response structure containing a list of `UploadthingFile` objects.
