@@ -1,9 +1,9 @@
 use crate::config::{ApiKey, UploadthingConfig};
 use crate::models::{
-    ContentDisposition, DeleteFileResponse, FileKeysPayload, FileObj, FileUpload, ListFilesOpts,
-    PresignedUrlOpts, PresignedUrlResponse, RenameFilesOpts, UploadFileOpts, UploadFileResponse,
-    UploadFileResponseData, UploadthingFileResponse, UploadthingUrlsResponse, UploadthingUsageInfo,
-    ACL,
+    Acl, ContentDisposition, DeleteFileResponse, FileKeysPayload, FileObj, FileUpload,
+    ListFilesOpts, PresignedUrlOpts, PresignedUrlResponse, RenameFilesOpts, UploadFileOpts,
+    UploadFileResponse, UploadFileResponseData, UploadthingFileResponse, UploadthingUrlsResponse,
+    UploadthingUsageInfo,
 };
 use anyhow::anyhow;
 use filesize::PathExt;
@@ -18,6 +18,9 @@ use std::io::Read;
 use std::time::Duration;
 use tokio::macros::support::Future;
 use tokio::task::JoinHandle;
+
+const MAX_RETRIES: u32 = 20;
+const MAXIMUM_BACKOFF_MS: u64 = 64 * 1000;
 
 /// The `UtApi` struct represents the client for interacting with the Uploadthing API.
 ///
@@ -364,6 +367,7 @@ impl UtApi {
         Ok(url_response.url)
     }
 
+    /// Uploads files to the `Uploadthing` service.
     pub async fn upload_files(
         &self,
         files: Vec<FileObj>,
@@ -388,8 +392,8 @@ impl UtApi {
                 acl = match o.acl {
                     None => "public-read",
                     Some(acl) => match acl {
-                        ACL::Private => "private",
-                        ACL::PublicRead => "public-read",
+                        Acl::Private => "private",
+                        Acl::PublicRead => "public-read",
                     },
                 }
             }
@@ -401,6 +405,7 @@ impl UtApi {
         Ok(value)
     }
 
+    /// Ping UploadThing to send a message saying a file is going to be uploaded, then upload it.
     async fn upload_files_internal(
         &self,
         files: Vec<FileObj>,
@@ -451,8 +456,8 @@ impl UtApi {
             let data = file_data[i].clone();
             let path = file.path.clone();
             let client = self.clone();
-            let task: JoinHandle<Result<FileUpload, anyhow::Error>> =
-                tokio::task::spawn(async move {
+            let task: JoinHandle<Result<FileUpload, anyhow::Error>> = tokio::task::spawn(
+                async move {
                     // TODO: handle multi files vs. single url
                     //
                     // Actual JS implementation:
@@ -469,25 +474,35 @@ impl UtApi {
                     let mut f = std::fs::File::open(&path)?;
                     let file_name = data["name"].as_str().unwrap().to_string();
 
-                    let result = client
-                        .upload_presigned_post(file_name.clone(), &mut f, &presigned)
-                        .await;
-                    match result {
-                        Ok(_) => {}
-                        Err(e) => {
-                            eprintln!("[UT] Error uploading file {:?}: {}", path, e);
-                            return Err(e);
+                    tokio::select! {
+                        result = client.upload_presigned_post(file_name.clone(), &mut f, &presigned) => {
+                            match result {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("[UT] Error uploading file {:?}: {}", path, e);
+                                    return Err(e);
+                                }
+                            }
+                        }
+                        _ = tokio::signal::ctrl_c() => {
+                            eprintln!("[UT] Upload cancelled for file {:?}", path);
+                            return Err(anyhow::anyhow!("Upload cancelled"));
                         }
                     }
-
                     if wait_until_done {
                         // Poll for file data
-                        client
-                            .poll_for_file_data(&format!(
-                                "{}/api/pollUpload/{}",
-                                client.config.host, presigned.key
-                            ))
-                            .await?;
+                        let url =
+                            format!("{}/api/pollUpload/{}", client.config.host, presigned.key);
+
+                        tokio::select! {
+                            result = retry_with_time_delays(|| client.poll_for_file_data(&url)) => {
+                                result?;
+                            }
+                            _ = tokio::signal::ctrl_c() => {
+                                eprintln!("[UT] Polling cancelled for file {:?}", path);
+                                return Err(anyhow::anyhow!("Polling cancelled"));
+                            }
+                        }
                     }
 
                     Ok(FileUpload {
@@ -496,7 +511,8 @@ impl UtApi {
                         name: file_name,
                         size: data["size"].as_u64().unwrap(),
                     })
-                });
+                },
+            );
 
             handles.push(task);
         }
@@ -507,6 +523,7 @@ impl UtApi {
         Ok(uploads)
     }
 
+    /// Uploads a file using a POST request to the Uploadthing service.
     async fn upload_presigned_post(
         &self,
         file_name: String,
@@ -544,82 +561,81 @@ impl UtApi {
         Ok(())
     }
 
-    async fn with_exponential_backoff<F, T, Fut>(
-        do_the_thing: F,
-    ) -> Result<Option<T>, anyhow::Error>
-    where
-        F: Fn() -> Fut,
-        Fut: Future<Output = Option<T>>,
-    {
-        let mut tries = 0;
-        let mut backoff_ms = 500;
-        let mut backoff_fuzz_ms: i32;
-
-        loop {
-            if tries > MAX_RETRIES {
-                return Ok(None);
-            }
-
-            let result = do_the_thing().await;
-            if result.is_some() {
-                return Ok(result);
-            }
-
-            tries += 1;
-            backoff_ms = std::cmp::min(MAXIMUM_BACKOFF_MS, backoff_ms * 2);
-            backoff_fuzz_ms = thread_rng().gen_range(0..500);
-
-            if tries > 3 {
-                println!(
-                    "[UT] Call unsuccessful after {} tries. Retrying in {} seconds...",
-                    tries,
-                    backoff_ms / 1000
-                );
-            }
-
-            tokio::time::sleep(Duration::from_millis(backoff_ms + backoff_fuzz_ms as u64)).await;
-        }
-    }
-
+    /// Make a request to UploadThing to check if the file has finished uploading.
     async fn poll_for_file_data(&self, url: &str) -> Result<Option<()>, anyhow::Error> {
-        Self::with_exponential_backoff(|| async move {
-            let res = self
-                .client
-                .get(url)
-                .header(
-                    "x-uploadthing-api-key",
-                    self.config.api_key.as_ref().unwrap().to_string(),
-                )
-                .send()
-                .await;
+        let res = self
+            .client
+            .get(url)
+            .header(
+                "x-uploadthing-api-key",
+                self.config.api_key.as_ref().unwrap().to_string(),
+            )
+            .send()
+            .await;
 
-            let res = match res {
-                Ok(res) => res,
-                Err(err) => {
-                    println!("[UT] Error polling for file data for {}: {}", url, err);
-                    return None;
-                }
-            };
+        let res = match res {
+            Ok(res) => res,
+            Err(err) => {
+                println!("[UT] Error polling for file data for {}: {}", url, err);
+                return Err(anyhow!(err));
+            }
+        };
 
-            let maybe_json: Result<serde_json::Value, _> =
-                res.json().await.map_err(|err| err.to_string());
+        let maybe_json: Result<serde_json::Value, _> =
+            res.json().await.map_err(|err| err.to_string());
 
-            match maybe_json {
-                Ok(json) => {
-                    if json["status"] == "done" {
-                        return Some(());
-                    }
-                }
-                Err(err) => {
-                    println!("[UT] Error polling for file data for {}: {}", url, err);
+        match maybe_json {
+            Ok(json) => {
+                if json["status"] == "done" {
+                    return Ok(Some(()));
                 }
             }
+            Err(err) => {
+                println!("[UT] Error polling for file data for {}: {}", url, err);
+            }
+        }
 
-            None
-        })
-        .await
+        Ok(None)
     }
 }
 
-const MAX_RETRIES: u32 = 20;
-const MAXIMUM_BACKOFF_MS: u64 = 64 * 1000;
+/// Retry a function with exponential timed back-off.
+async fn retry_with_time_delays<F, T, Fut>(do_the_thing: F) -> Result<Option<T>, anyhow::Error>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<Option<T>, anyhow::Error>>,
+{
+    let mut tries = 0;
+    let mut backoff_ms = 500;
+    let mut backoff_fuzz_ms: i32;
+
+    loop {
+        if tries > MAX_RETRIES {
+            return Ok(None);
+        }
+
+        let result = do_the_thing().await;
+        if result.is_ok() {
+            return result;
+        }
+
+        tries += 1;
+        backoff_ms = std::cmp::min(MAXIMUM_BACKOFF_MS, backoff_ms * 2);
+        backoff_fuzz_ms = thread_rng().gen_range(0..500);
+
+        if tries > 3 {
+            println!(
+                "[UT] Call unsuccessful after {} tries. Retrying in {} seconds...",
+                tries,
+                backoff_ms / 1000
+            );
+        }
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                return Err(anyhow::anyhow!("Operation cancelled"));
+            }
+            _ = tokio::time::sleep(Duration::from_millis(backoff_ms + backoff_fuzz_ms as u64)) => {}
+        }
+    }
+}

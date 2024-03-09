@@ -7,7 +7,7 @@ pub enum ContentDisposition {
 }
 
 #[derive(serde::Serialize)]
-pub enum ACL {
+pub enum Acl {
     Private,
     PublicRead,
 }
@@ -23,7 +23,7 @@ pub struct UploadFileOpts {
     pub metadata: Option<HashMap<String, String>>,
     #[serde(rename(serialize = "contentDisposition"))]
     pub content_disposition: Option<ContentDisposition>,
-    pub acl: Option<ACL>,
+    pub acl: Option<Acl>,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -37,7 +37,7 @@ pub struct UploadFileResponseData {
     #[serde(rename = "fileUrl")]
     pub file_url: String,
     pub key: String,
-    #[serde(rename = "presignedUrl", default = "default_string")]
+    #[serde(rename = "presignedUrl")]
     pub presigned_url: String,
     pub url: Option<String>,
     pub urls: Option<Vec<String>>,
@@ -50,19 +50,18 @@ fn default_string() -> String {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct Fields {
-    #[serde(rename = "Content-Disposition", default = "default_string")]
+    #[serde(rename = "Content-Disposition")]
     pub content_disposition: String,
-    #[serde(rename = "Content-Type", default = "default_string")]
+    #[serde(rename = "Content-Type")]
     pub content_type: String,
-    #[serde(default = "default_string")]
     pub policy: String,
-    #[serde(rename = "X-Amz-Algorithm", default = "default_string")]
+    #[serde(rename = "X-Amz-Algorithm")]
     pub x_amz_algorithm: String,
-    #[serde(rename = "X-Amz-Credential", default = "default_string")]
+    #[serde(rename = "X-Amz-Credential")]
     pub x_amz_credential: String,
-    #[serde(rename = "X-Amz-Date", default = "default_string")]
+    #[serde(rename = "X-Amz-Date")]
     pub x_amz_date: String,
-    #[serde(rename = "X-Amz-Signature", default = "default_string")]
+    #[serde(rename = "X-Amz-Signature")]
     pub x_amz_signature: String,
     #[serde(default = "default_string")]
     pub acl: String,

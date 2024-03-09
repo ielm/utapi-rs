@@ -35,6 +35,6 @@ pub use presigned_url::{PresignedUrlOpts, PresignedUrlResponse};
 
 pub mod upload_files;
 pub use upload_files::{
-    ContentDisposition, FileObj, FileUpload, UploadFileOpts, UploadFileResponse,
-    UploadFileResponseData, ACL,
+    Acl, ContentDisposition, FileObj, FileUpload, UploadFileOpts, UploadFileResponse,
+    UploadFileResponseData,
 };
