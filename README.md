@@ -12,7 +12,7 @@ Add the following to your `Cargo.toml` file to include `utapi-rs` as a dependenc
 
 ```toml
 [dependencies]
-utapi-rs = "0.1.0"
+utapi-rs = "0.1"
 ```
 
 ## Usage
