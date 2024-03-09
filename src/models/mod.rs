@@ -32,3 +32,9 @@ pub use usage_info::UploadthingUsageInfo;
 pub mod presigned_url;
 // Exports types related to presigned URL options and responses.
 pub use presigned_url::{PresignedUrlOpts, PresignedUrlResponse};
+
+pub mod upload_files;
+pub use upload_files::{
+    Acl, ContentDisposition, FileObj, FileUpload, UploadFileOpts, UploadFileResponse,
+    UploadFileResponseData,
+};

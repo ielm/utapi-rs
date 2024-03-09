@@ -10,9 +10,16 @@ repository = "https://github.com/ielm/utapi-rs"
 
 
 [dependencies]
-serde = {version = "^1.0", features = ["derive"]}
-serde_with = "^3.6"
+serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
 url = "^2.2"
 uuid = { version = "^1.0", features = ["serde", "v4"] }
-reqwest = { version = "^0.11", features = ["json", "multipart"] }
+reqwest = { version = "^0.11", features = ["json", "multipart", "rustls-tls", "stream"] }
+mime_guess = "2.0.4"
+tokio-util = "0.7.10"
+tokio = { version = "1.36.0", features = ["full"] }
+futures-util = "0.3.30"
+futures = "0.3.30"
+rand = "0.8.5"
+anyhow = "1.0.80"
+filesize = "0.2.0"

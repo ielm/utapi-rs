@@ -6,7 +6,7 @@ use std::str::FromStr;
 /// This struct contains all the necessary configurations required
 /// to interact with the Uploadthing API. It includes the host URL,
 /// optional user agent, API key, and version information.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UploadthingConfig {
     /// The host URL of the Uploadthing service.
     pub host: String,
@@ -32,6 +32,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// This struct holds the actual API key and an optional prefix.
 /// The prefix can be used to add a specific identifier before the key
 /// when sending it in the request header, but it is not required.
+#[derive(Clone)]
 pub struct ApiKey {
     /// An optional prefix to be added to the API key.
     /// This can be used to distinguish between different types of keys.
